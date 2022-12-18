@@ -1,0 +1,1 @@
+Project to integrate OpenAI models with an AWS backed chatbot.
