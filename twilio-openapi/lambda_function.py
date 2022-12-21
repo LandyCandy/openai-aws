@@ -53,7 +53,7 @@ def lambda_handler(event, context):
     try:
 
         if len(prompt) >= 7 and 'image:' in prompt[:6].lower():
-            image_prompt = prompt[5:]
+            image_prompt = prompt[6:]
 
             image_response = openai.Image.create(
                 prompt=image_prompt,
@@ -73,7 +73,8 @@ def lambda_handler(event, context):
             for phonenumber_in_received_message in phonenumbers_in_received_message:
                 outgoing_messages += message_template % (twilio_number, phonenumber_in_received_message, image_url)
         elif len(prompt) >= 9 and 'diffuse:' in prompt[:8].lower():
-            image_url = escape(generate_image(prompt))
+            image_prompt = prompt[8:]
+            image_url = escape(generate_image(image_prompt, clip_flag=False))
 
             message_template = """
                 <Message from="%s" to="%s">
@@ -85,10 +86,26 @@ def lambda_handler(event, context):
             for phonenumber_in_received_message in phonenumbers_in_received_message:
                 outgoing_messages += message_template % (twilio_number, phonenumber_in_received_message, image_url)
 
+        elif len(prompt) >= 14 and 'diffuse-clip:' in prompt[:13].lower():
+            image_prompt = prompt[13:]
+            image_url = escape(generate_image(image_prompt, clip_flag=True))
+
+            message_template = """
+                <Message from="%s" to="%s">
+                    <Media>%s</Media>
+                </Message>
+            """ 
+
+            #create list of outgoing messages as a single string
+            for phonenumber_in_received_message in phonenumbers_in_received_message:
+                outgoing_messages += message_template % (twilio_number, phonenumber_in_received_message, image_url)
+
+
         elif len(prompt) >= 6 and 'code:' in prompt[:5].lower():
+            code_prompt = prompt[5:]
             response = openai.Completion.create(
                 model="code-davinci-002",
-                prompt=init_prompt % prompt,
+                prompt=code_prompt,
                 temperature=0,
                 max_tokens=1000,
                 top_p=0.1,
