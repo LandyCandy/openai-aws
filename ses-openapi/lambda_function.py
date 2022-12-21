@@ -7,8 +7,8 @@ import base64
 import openai
 from botocore.exceptions import ClientError
 
-openai.organization = "org-Ba1ocqhhrAabsOlWfoo7zx0V"
-openai.api_key = "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"
+openai.organization = os.environ['OPENAI_ORG']
+openai.api_key = os.environ['OPENAI_KEY']
 
 init_prompt = """The following is a conversation with an AI assistant.
     The assistant is helpful, creative, clever, friendly, funny and very snarky.
