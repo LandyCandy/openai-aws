@@ -1,5 +1,12 @@
 #! /bin/bash
 
+#exit on non-zero return from any command, export vars inherited by subsequent commands
+set -ea
+
+# run tests
+. ../setenv.sh
+../dev-env/bin/python3 ./lambda_function.py
+
 # Clean previous archive
 rm -f open-ai-deployment-package.zip
 
@@ -13,7 +20,7 @@ zip -r ../../../../open-ai-deployment-package.zip .
 cd ../../../../
 
 # Zip lambda function file into archive
-zip -g open-ai-deployment-package.zip lambda_function.py
+zip -g open-ai-deployment-package.zip *.py
 
 # Upload to s3 location for automatic deployment to lambda
 aws s3 cp open-ai-deployment-package.zip s3://myshitbucket/lambda_deployment_zips/open-ai-deployment-package.zip
