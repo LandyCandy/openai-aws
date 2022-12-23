@@ -1,0 +1,5 @@
+#!/bin/sh
+
+export OPENAI_KEY=[replaceWithYourKey]
+export OPENAI_ORG=[replaceWithYourOrg]
+export STABILITY_KEY=[replaceWithYourKey]

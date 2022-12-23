@@ -2,17 +2,10 @@ import os
 import urllib
 import openai
 from stable_diffusion import generate_image
+from chat_history import ChatHistory
 
 openai.organization = os.environ['OPENAI_ORG']
 openai.api_key = os.environ['OPENAI_KEY']
-
-init_prompt = """The following is a conversation with an AI assistant.
-    The assistant is helpful, creative, clever, funny and very snarky.
-    Human: Hello, who are you?
-    AI: Hello Meatbag. I am an AI name Shatbot. How can I be of moderate help to you today?
-    Human: %s
-    AI:
-    """
 
 #Because xml is real dumb
 def escape(str_xml: str):
@@ -23,6 +16,9 @@ def escape(str_xml: str):
     str_xml = str_xml.replace("'", "&apos;")
     return str_xml
 
+def keyword_check(prompt, keyword):
+    return prompt.lower().startswith(keyword)
+
 
 def lambda_handler(event, context):
     #get twilio number this message was sent to
@@ -31,7 +27,8 @@ def lambda_handler(event, context):
     #collect other message recipients in phonenumbers_in_received_messages list (in the From and OtherRecipientsN fields)
 
     #collect number of the query sender
-    phonenumbers_in_received_message = [urllib.parse.unquote(event['From'], encoding='utf-8', errors='replace')]
+    client_number = urllib.parse.unquote(event['From'], encoding='utf-8', errors='replace')
+    phonenumbers_in_received_message = [client_number]
 
     #collect other message recipients
     OtherRecipientsN = 0
@@ -49,10 +46,10 @@ def lambda_handler(event, context):
 
     #get prompt from sender and hit openAPI with it
     prompt = urllib.parse.unquote(event['Body'], encoding='utf-8', errors='replace')
+    prompt = prompt.replace('+', ' ')
 
     try:
-
-        if len(prompt) >= 7 and 'image:' in prompt[:6].lower():
+        if keyword_check(prompt, 'image'):
             image_prompt = prompt[6:]
 
             image_response = openai.Image.create(
@@ -63,45 +60,39 @@ def lambda_handler(event, context):
             image_url = escape(image_response['data'][0]['url'])
 
             #individual message template
-            message_template = """
-                <Message from="%s" to="%s">
-                    <Media>%s</Media>
-                </Message>
-            """ 
+            message_template = ('<Message from="%s" to="%s">\n' +
+                                '<Media>%s</Media>\n' +
+                                '</Message>')
 
             #create list of outgoing messages as a single string
             for phonenumber_in_received_message in phonenumbers_in_received_message:
                 outgoing_messages += message_template % (twilio_number, phonenumber_in_received_message, image_url)
-        elif len(prompt) >= 9 and 'diffuse:' in prompt[:8].lower():
+        elif keyword_check(prompt, 'diffuse'):
             image_prompt = prompt[8:]
             image_url = escape(generate_image(image_prompt, clip_flag=False))
 
-            message_template = """
-                <Message from="%s" to="%s">
-                    <Media>%s</Media>
-                </Message>
-            """ 
+            message_template = ('<Message from="%s" to="%s">\n' +
+                                '<Media>%s</Media>\n' +
+                                '</Message>')
 
             #create list of outgoing messages as a single string
             for phonenumber_in_received_message in phonenumbers_in_received_message:
                 outgoing_messages += message_template % (twilio_number, phonenumber_in_received_message, image_url)
 
-        elif len(prompt) >= 14 and 'diffuse-clip:' in prompt[:13].lower():
+        elif keyword_check(prompt, 'diffuse-clip'):
             image_prompt = prompt[13:]
             image_url = escape(generate_image(image_prompt, clip_flag=True))
 
-            message_template = """
-                <Message from="%s" to="%s">
-                    <Media>%s</Media>
-                </Message>
-            """ 
+            message_template = ('<Message from="%s" to="%s">\n' +
+                                '<Media>%s</Media>\n' +
+                                '</Message>')
 
             #create list of outgoing messages as a single string
             for phonenumber_in_received_message in phonenumbers_in_received_message:
                 outgoing_messages += message_template % (twilio_number, phonenumber_in_received_message, image_url)
 
 
-        elif len(prompt) >= 6 and 'code:' in prompt[:5].lower():
+        elif keyword_check(prompt, 'code'):
             code_prompt = prompt[5:]
             response = openai.Completion.create(
                 model="code-davinci-002",
@@ -118,20 +109,22 @@ def lambda_handler(event, context):
             prompt_response = escape(response["choices"][0]["text"])
 
             #individual message template
-            message_template = """
-                <Message from="%s" to="%s">
-                    <Body>%s</Body>
-                </Message>
-            """ 
+            message_template = ('<Message from="%s" to="%s">\n' +
+                                '<Body>%s</Body>\n' +
+                                '</Message>')
+
 
             #create list of outgoing messages as a single string
             for phonenumber_in_received_message in phonenumbers_in_received_message:
                 outgoing_messages += message_template % (twilio_number, phonenumber_in_received_message, prompt_response)
 
         else:
+            chatHistory = ChatHistory(client_number)
+            full_prompt = chatHistory.retrieve_append_chat(prompt)
+
             response = openai.Completion.create(
                 model="text-davinci-003",
-                prompt=init_prompt % prompt,
+                prompt=full_prompt,
                 temperature=0.9,
                 max_tokens=1000,
                 top_p=1,
@@ -142,33 +135,54 @@ def lambda_handler(event, context):
             )
 
             prompt_response = escape(response["choices"][0]["text"])
+            chatHistory.update_chat_remote(full_prompt, prompt_response)
 
             #individual message template
-            message_template = """
-                <Message from="%s" to="%s">
-                    <Body>%s</Body>
-                </Message>
-            """ 
+            message_template = ('<Message from="%s" to="%s">\n' +
+                                '<Body>%s</Body>\n' +
+                                '</Message>')
+
 
             #create list of outgoing messages as a single string
             for phonenumber_in_received_message in phonenumbers_in_received_message:
                 outgoing_messages += message_template % (twilio_number, phonenumber_in_received_message, prompt_response)
 
     except Exception as err:
-        message_template = """
-            <Message from="%s" to="%s">
-                <Body>%s</Body>
-            </Message>
-        """ 
+        message_template = ('<Message from="%s" to="%s">\n' +
+                            '<Body>%s</Body>\n' +
+                            '</Message>')
 
         prompt_response = escape(repr(err))
 
         for phonenumber_in_received_message in phonenumbers_in_received_message:
             outgoing_messages += message_template % (twilio_number, phonenumber_in_received_message, prompt_response)
 
-    return ("""
-            <?xml version="1.0" encoding="UTF-8"?>
-            <Response>
-                %s
-            </Response>
-            """ % outgoing_messages)
+    return (('<?xml version="1.0" encoding="UTF-8"?>\n' +
+            '<Response>\n' +
+            '%s\n' +
+            '</Response>') % outgoing_messages)
+
+if __name__ == "__main__":
+    input_event = {
+        'ToCountry': 'US',
+        'ToState': 'CA',
+        'SmsMessageSid': 'SMs0meR4nd0mnumb3rs4ndL3tt3r5',
+        'NumMedia': '0',
+        'ToCity': '',
+        'FromZip': '12345',
+        'SmsSid': 'SMs0meR4nd0mnumb3rs4ndL3tt3r5',
+        'FromState': 'PA',
+        'SmsStatus': 'received',
+        'FromCity': 'ALLENSTOWN', 
+        'Body': 'Testing+Twilio+2.0',
+        'FromCountry': 'US',
+        'To': '%2B12345678910',
+        'ToZip': '',
+        'NumSegments': '1',
+        'ReferralNumMedia': '0',
+        'MessageSid': 'SMs0meR4nd0mnumb3rs4ndL3tt3r5',
+        'AccountSid': 'SMs0meR4nd0mnumb3rs4ndL3tt3r5',
+        'From': '%2B10198765432',
+        'ApiVersion': '2010-04-01'
+    }
+    print(lambda_handler(input_event, {}))

@@ -1,5 +1,12 @@
 #! /bin/bash
 
+#exit on non-zero return from any command, export vars inherited by subsequent commands
+set -ea
+
+# run tests
+. ../setenv.sh
+../dev-env/bin/python3 ./lambda_function.py
+
 # Clean previous archive
 rm -f openai-twilio-deployment-package.zip
 
@@ -13,9 +20,7 @@ zip -r ../../../../openai-twilio-deployment-package.zip .
 cd ../../../../
 
 # Zip lambda function file into archive
-zip -g openai-twilio-deployment-package.zip __init__.py
-zip -g openai-twilio-deployment-package.zip stable_diffusion.py
-zip -g openai-twilio-deployment-package.zip lambda_function.py
+zip -g openai-twilio-deployment-package.zip *.py
 
 # Upload to s3 location for automatic deployment to lambda
 aws s3 cp openai-twilio-deployment-package.zip s3://myshitbucket/lambda_deployment_zips/openai-twilio-deployment-package.zip

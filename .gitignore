@@ -2,3 +2,4 @@
 /dev-env
 **/python
 **/*.zip
+setenv.sh
