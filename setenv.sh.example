@@ -3,3 +3,10 @@
 export OPENAI_KEY=[replaceWithYourKey]
 export OPENAI_ORG=[replaceWithYourOrg]
 export STABILITY_KEY=[replaceWithYourKey]
+
+
+export TWILIO_ACCOUNT_SID=[replaceWithYourSID]
+export TWILIO_AUTH_TOKEN=[replaceWithYourAuthToken]
+
+export TWILIO_NUMBER=[replaceWithYourTwilioNumber]  # eg. "%2B12345678901"
+export TEST_NUMBER=[replaceWithYourTestNumber]
